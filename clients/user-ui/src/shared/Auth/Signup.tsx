@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import styles from '@/src/utils/style';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,33 +11,51 @@ import {
 } from 'react-icons/ai';
 import { FcGoogle } from 'react-icons/fc';
 import { z } from 'zod';
+import { useMutation } from '@apollo/client';
+import { REGISTER_USER } from '@/src/grapql/actions/register.action';
+import toast from 'react-hot-toast';
 
 const formSchema = z.object({
   name: z.string().min(3, '이름은 최소 3글자 이상이 필요합니다.'),
   email: z.string().email(),
-  password: z.string().min(8, '비밀번호는 최소 8자리 입니다.'),
   phone_number: z.number().min(10, '핸드폰 번호는 최소 10자리 이상입니다.'),
+  password: z.string().min(8, '비밀번호는 최소 8자리 입니다.'),
 });
 
-type SignupSchema = z.infer<typeof formSchema>;
+type SignUpSchema = z.infer<typeof formSchema>;
+
 const Signup = ({
   setActiveState,
 }: {
   setActiveState: (e: string) => void;
 }) => {
+  const [registerUserMutation, { loading }] = useMutation(REGISTER_USER);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
-  } = useForm<SignupSchema>({
+  } = useForm<SignUpSchema>({
     resolver: zodResolver(formSchema),
   });
   const [show, setShow] = useState(false);
 
-  const onSubmit = (data: SignupSchema) => {
-    console.log(data);
-    reset();
+  const onSubmit = async (data: SignUpSchema) => {
+    try {
+      const response = await registerUserMutation({
+        variables: data,
+      });
+      // 토큰을 저장해줍니다.
+      localStorage.setItem(
+        'activation_token',
+        response.data.register.activation_token
+      );
+
+      toast.success('이메일을 확인해 주세요!');
+      reset();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
   };
   return (
     <div className="m-2">
@@ -69,11 +88,16 @@ const Signup = ({
             핸드폰 번호을 입력해 주세요!
           </label>
           <input
-            {...register('phone_number')}
+            {...register('phone_number', { valueAsNumber: true })}
             type="number"
-            placeholder="010-1111-1111"
+            placeholder="01011111111"
             className={`${styles.input}`}
           />
+          {errors.phone_number && (
+            <span className="text-red-500 block mt-1">
+              {`${errors.phone_number.message}`}
+            </span>
+          )}
         </div>
         <div className="w-full mt-5 relative mb-1">
           <label className={`${styles.label}`} htmlFor="password">
@@ -85,11 +109,7 @@ const Signup = ({
             placeholder="password!@"
             className={`${styles.input}`}
           />
-          {errors.password && (
-            <span className="text-red-500 block mt-1">
-              {`${errors.password.message}`}
-            </span>
-          )}
+
           {!show ? (
             <AiOutlineEyeInvisible
               className="absolute bottom-3 right-2 z-1 cursor-pointer"
@@ -104,11 +124,16 @@ const Signup = ({
             />
           )}
         </div>
+        {errors.password && (
+          <span className="text-red-500 block mt-1">
+            {`${errors.password.message}`}
+          </span>
+        )}
         <div className="w-full mt-5">
           <input
             type="submit"
             value="회원가입"
-            disabled={isSubmitting}
+            disabled={isSubmitting || loading}
             className={`${styles.button} mt-3`}
           />
         </div>
